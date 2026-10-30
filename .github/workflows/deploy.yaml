@@ -19,11 +19,11 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        working-directory: ./cicd
+        working-directory: ./CICD
         run: npm ci
 
       - name: Run tests
-        working-directory: ./cicd
+        working-directory: ./CICD
         run: npm test
 
       - name: Configure AWS credentials
@@ -44,7 +44,7 @@ jobs:
         run: |
           IMAGE_URI="$REGISTRY/$REPOSITORY:${{ github.sha }}"
 
-          docker build -t "$IMAGE_URI" ./cicd
+          docker build -t "$IMAGE_URI" ./CICD
           docker push "$IMAGE_URI"
 
           echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
