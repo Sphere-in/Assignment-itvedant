@@ -9,8 +9,8 @@ Comprehensive documentation and implementation artifacts for the three DevOps as
 | # | Assignment Track | AWS Profile | AWS Account ID | Key AWS Services | Folder / Documentation Link |
 |---|---|---|---|---|---|
 | **1** | [**CI/CD Pipeline**](#1-cicd-pipeline-github-actions--ecr--eks) | `exo` | `713554441658` | GitHub Actions, Docker, ECR, EKS, Kubernetes | [`CICD/`](./CICD/) &bull; [`CICD/README.md`](./CICD/README.md) |
-| **2** | [**S3 + CloudFront CDN**](#2-cloudfront-cdn--secure-s3-static-origin) | `lxof` | `667528811503` | CloudFront, S3, IAM, ACM, VPC Endpoints | [`S3+Cloudfront/`](./S3+Cloudfront/) &bull; [`S3+Cloudfront/README.md`](./S3+Cloudfront/README.md) |
-| **3** | [**ASG + ALB Architecture**](#3-auto-scaling-group-asg--application-load-balancer-alb) | `lxof` | `667528811503` | EC2, Launch Template, ASG, ALB, Target Groups | [`ASG+ALB/`](./ASG+ALB/) &bull; [`ASG+ALB/README.md`](./ASG+ALB/README.md) |
+| **2** | [**S3 + CloudFront CDN**](#2-cloudfront-cdn--secure-s3-static-origin) | `lxof` | `667528811503` | CloudFront, S3, IAM, ACM, OAC | [`S3+Cloudfront/`](./S3+Cloudfront/) &bull; [`S3+Cloudfront/README.md`](./S3+Cloudfront/README.md) |
+| **3** | [**ASG + ALB Architecture**](#3-auto-scaling-group-asg--application-load-balancer-alb) | `lxof` | `667528811503` | EC2, Launch Template, ASG, ALB, CloudWatch Alarms | [`ASG+ALB/`](./ASG+ALB/) &bull; [`ASG+ALB/README.md`](./ASG+ALB/README.md) |
 
 ---
 
@@ -18,7 +18,7 @@ Comprehensive documentation and implementation artifacts for the three DevOps as
 
 As configured across environments:
 * **`exo` profile (AWS Account ID: `713554441658`, Region: `ap-south-1`):** Used for **CI/CD** (ECR registry `713554441658.dkr.ecr.ap-south-1.amazonaws.com` and target Amazon EKS cluster).
-* **`lxof` profile (AWS Account ID: `667528811503`, Region: `ap-south-1`):** Used for **S3 + CloudFront** (S3 bucket `lx-dev-data`, CloudFront distribution `E1UT5TO0M5A4P1`) and **ASG + ALB** (Launch Template `ly-lt`, Auto Scaling Group `assig-itv`, Load Balancer `ALB-assig-itv`).
+* **`lxof` profile (AWS Account ID: `667528811503`, Region: `ap-south-1`):** Used for **S3 + CloudFront** (Origin S3 bucket `asses-itv`, CloudFront distribution `E1UT5TO0M5A4P1`) and **ASG + ALB** (Launch Template `ly-lt`, Auto Scaling Group `assig-itv`, Load Balancer `ALB-assig-itv`).
 
 ---
 
@@ -50,6 +50,12 @@ flowchart LR
 4. **EKS Rolling Update:** Connects to the EKS cluster, runs `kubectl set image deployment/node-app node-app="$IMAGE_URI"`, and waits for successful rollout using `kubectl rollout status`.
 
 ### Verified Deployment Reference:
+
+#### 1. GitHub Actions Pipeline Execution
+The image below shows the successful end-to-end GitHub Actions workflow (`build-test-deploy`) passing all steps:
+![GitHub Actions CI/CD Pipeline](./CICD/cicd.png)
+
+#### 2. Running Pod on Amazon EKS Cluster
 The image below shows the running Kubernetes pod with the image deployed from ECR:
 ![EKS Deployment Verification](./CICD/k8s/Reference%20Image/image.png)
 
@@ -62,25 +68,25 @@ The image below shows the running Kubernetes pod with the image deployed from EC
 * **AWS Profile:** `lxof` (`667528811503`)
 
 ### Overview
-A secure static website / content delivery setup where **Amazon CloudFront** serves as the CDN edge in front of an **Amazon S3** bucket (`lx-dev-data`). Direct public S3 access is strictly forbidden, and cache invalidation is configured for rapid asset updates.
+A secure static asset / content delivery architecture where **Amazon CloudFront** serves as the CDN edge in front of an **Amazon S3** bucket (`asses-itv`). Direct public S3 access is strictly blocked, and access is permitted exclusively via CloudFront using Origin Access Control (OAC).
 
 ```mermaid
 flowchart LR
     User["End User / Browser"] -->|"HTTPS (s3.linkcxo.us)"| CF["CloudFront Distribution (E1UT5TO0M5A4P1)"]
-    CF -->|"Origin Access Control (OAC)"| S3[("S3 Bucket: lx-dev-data")]
-    Public["Direct Public Access"] -.->|"403 Forbidden (Blocked)"| S3
+    CF -->|"Origin Access Control (OAC)"| S3[("S3 Bucket: asses-itv")]
+    Public["Direct S3 Access (asses-itv.s3.../images.jpg)"] -.->|"403 Forbidden (Blocked)"| S3
 ```
 
 ### Key Configuration Highlights:
 * **CloudFront Distribution ID:** `E1UT5TO0M5A4P1`
 * **Distribution Domain:** `d2evn9szkajs7w.cloudfront.net`
 * **Custom CNAME:** `s3.linkcxo.us` (Custom ACM SSL Certificate with TLSv1.2)
-* **S3 Bucket:** `lx-dev-data`
+* **Origin S3 Bucket:** `asses-itv` (Region: `ap-south-1`)
 * **Access Control & Restriction:**
-  * Direct public S3 access is blocked via the bucket policy in [`S3+Cloudfront/s3_policy.json`](./S3+Cloudfront/s3_policy.json).
-  * Only CloudFront's service principal (`cloudfront.amazonaws.com`) matching `AWS:SourceArn` of `arn:aws:cloudfront::667528811503:distribution/E1UT5TO0M5A4P1` is permitted to read objects.
-  * Insecure transport is explicitly denied (`aws:SecureTransport: "false"`).
-  * Direct access from outside authorized VPC `vpc-0f1e27305e6e935ff` is denied.
+  * Direct public access to `https://asses-itv.s3.ap-south-1.amazonaws.com/images.jpg` is **blocked with `403 Forbidden`**.
+  * Only CloudFront's service principal (`cloudfront.amazonaws.com`) matching `AWS:SourceArn` of `arn:aws:cloudfront::667528811503:distribution/E1UT5TO0M5A4P1` is permitted to read objects via [`S3+Cloudfront/s3_policy.json`](./S3+Cloudfront/s3_policy.json).
+  * Requests through custom domain `https://s3.linkcxo.us/images.jpg` return **`200 OK`**.
+  * Requests through distribution domain `https://d2evn9szkajs7w.cloudfront.net/images.jpg` return **`200 OK`**.
 * **Cache Invalidation:**
   ```bash
   aws cloudfront create-invalidation --profile lxof --distribution-id E1UT5TO0M5A4P1 --paths "/*"
@@ -97,7 +103,7 @@ flowchart LR
 * **AWS Profile:** `lxof` (`667528811503`, Region `ap-south-1`)
 
 ### Overview
-A fault-tolerant and elastic architecture utilizing an **Application Load Balancer (ALB)** distributing traffic across a pool of EC2 instances managed by an **Auto Scaling Group (ASG)**. The architecture features automatic target tracking scaling when CPU utilization exceeds 70%, as well as automatic self-healing to replace unhealthy instances.
+A fault-tolerant and elastic architecture utilizing an **Application Load Balancer (ALB)** distributing traffic across a pool of EC2 instances managed by an **Auto Scaling Group (ASG)**. The architecture features automatic target tracking scaling when CPU utilization exceeds 70%, as well as automatic self-healing to replace unhealthy instances and retry capacity provisioning.
 
 ```mermaid
 flowchart TD
@@ -105,11 +111,12 @@ flowchart TD
     ALB -->|"Health Probes"| TG["Target Group: ALB-assig-itv"]
     TG -->|"Forward"| EC2["EC2: i-006d84f5b9a5f84ed (ap-south-1a)"]
 
-    subgraph ASG_Group["Auto Scaling Group: assig-itv (Min: 1, Desired: 1, Max: 2)"]
+    subgraph ASG_Group["Auto Scaling Group: assig-itv (Min: 1, Desired: 1-2, Max: 2)"]
         EC2
+        EC2_Scale["Scale-out Instance: i-08746bd8ccc718d11"]
     end
 
-    Policy["Target Tracking Scaling (CPU > 70%)"] -->|"Scale out"| ASG_Group
+    Policy["Target Tracking Scaling (CPU > 70%)"] -->|"Scale out (1 -> 2)"| ASG_Group
 ```
 
 ### Key Components:
@@ -117,8 +124,15 @@ flowchart TD
 2. **Application Load Balancer (`ALB-assig-itv`):** Internet-facing ALB deployed across subnets in `ap-south-1a`, `ap-south-1b`, and `ap-south-1c`. DNS endpoint: `ALB-assig-itv-259337061.ap-south-1.elb.amazonaws.com`.
 3. **Target Group (`ALB-assig-itv`):** Routes HTTP:80 traffic to healthy registered instances (`i-006d84f5b9a5f84ed`).
 4. **Auto Scaling Group (`assig-itv`):** Capacity limits set to Min: 1, Desired: 1, Max: 2.
-5. **Dynamic Scaling (CPU > 70%):** Target tracking scaling policy continuously monitors average CPU utilization via Amazon CloudWatch. If CPU crosses 70%, ASG automatically spins up additional capacity.
-6. **Automatic Unhealthy Instance Replacement:** Integrated ELB health checks continuously test target response. When an instance is deemed unhealthy, ASG terminates it and provisions a fresh instance from the Launch Template.
+5. **Dynamic Scaling (CPU > 70%) & Self-Healing Verification:**
+   * Executed CPU stress test directly on instance `i-006d84f5b9a5f84ed`:
+     ```bash
+     sudo dnf install stress-ng -y
+     stress-ng --cpu 1 --cpu-load 80 --timeout 600s
+     ```
+   * CloudWatch alarm `TargetTracking-assig-itv-AlarmHigh` fired, requesting desired capacity increase from 1 to 2.
+   * ASG handled a temporary AWS `t2.micro` capacity constraint in `ap-south-1a` with automatic retries.
+   * Self-healing recovered and successfully launched new instance **`i-08746bd8ccc718d11`**, reaching desired capacity of 2.
 
 ### Architecture Screenshots:
 
@@ -137,16 +151,22 @@ flowchart TD
 #### 5. Active EC2 Instance
 ![EC2 Instance](./ASG+ALB/instance.png)
 
+#### 6. ASG Activity - CloudWatch Alarm & Transient AZ Constraint
+![ASG Activity History - Alarm Triggered](./ASG+ALB/ASG-Activity-1.png)
+
+#### 7. ASG Activity - Self-Healing Recovery & Successful Scale-Out
+![ASG Activity History - Successful Scale-Out](./ASG+ALB/ASG-activity-2.png)
+
 ---
 
 ## 🛠️ Verification & Assessment Checklist
 
 | Requirement | Implementation Artifact | Status |
 |---|---|---|
-| **CI/CD: GitHub Actions pipeline with tests, Docker build, ECR push, K8s deploy** | [`.github/workflows/deploy.yaml`](./.github/workflows/deploy.yaml) &bull; [`CICD/package.json`](./CICD/package.json) | ✅ Verified |
-| **CloudFront: S3 origin configuration** | [`S3+Cloudfront/image.png`](./S3+Cloudfront/image.png) | ✅ Verified |
-| **CloudFront: Restrict direct S3 access** | [`S3+Cloudfront/s3_policy.json`](./S3+Cloudfront/s3_policy.json) | ✅ Verified |
+| **CI/CD: GitHub Actions pipeline with tests, Docker build, ECR push, K8s deploy** | [`.github/workflows/deploy.yaml`](./.github/workflows/deploy.yaml) &bull; [`CICD/cicd.png`](./CICD/cicd.png) | ✅ Verified |
+| **CloudFront: S3 origin configuration (`asses-itv`)** | [`S3+Cloudfront/image.png`](./S3+Cloudfront/image.png) | ✅ Verified |
+| **CloudFront: Restrict direct S3 access (403 direct / 200 CloudFront)** | [`S3+Cloudfront/s3_policy.json`](./S3+Cloudfront/s3_policy.json) &bull; [`S3+Cloudfront/README.md`](./S3+Cloudfront/README.md#endpoint-verification--access-control-tests) | ✅ Verified |
 | **CloudFront: Cache invalidation** | [`S3+Cloudfront/README.md`](./S3+Cloudfront/README.md#cache-invalidation-configuration) | ✅ Verified |
 | **ASG + ALB: Launch Template, ASG, ALB, Target Group** | [`ASG+ALB/ALB.png`](./ASG+ALB/ALB.png) &bull; [`ASG+ALB/ASG.png`](./ASG+ALB/ASG.png) | ✅ Verified |
-| **ASG + ALB: Scale when CPU exceeds 70%** | [`ASG+ALB/Dynamic-scale.png`](./ASG+ALB/Dynamic-scale.png) | ✅ Verified |
-| **ASG + ALB: Automatic replacement of unhealthy instances** | [`ASG+ALB/README.md`](./ASG+ALB/README.md#6-automatic-replacement-of-unhealthy-instances-self-healing) | ✅ Verified |
+| **ASG + ALB: Dynamic Scale-out (`stress-ng` CPU > 70%)** | [`ASG+ALB/Dynamic-scale.png`](./ASG+ALB/Dynamic-scale.png) &bull; [`ASG+ALB/ASG-Activity-1.png`](./ASG+ALB/ASG-Activity-1.png) | ✅ Verified |
+| **ASG + ALB: Self-healing retry & instance provisioning** | [`ASG+ALB/ASG-activity-2.png`](./ASG+ALB/ASG-activity-2.png) | ✅ Verified |

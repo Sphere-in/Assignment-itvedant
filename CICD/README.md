@@ -32,6 +32,7 @@ flowchart LR
 ## 📁 Repository Structure
 ```text
 CICD/
+├── cicd.png                        # Successful GitHub Actions CI/CD pipeline run verification
 ├── app.js                          # Node.js Express application (/ and /health endpoints)
 ├── Dockerfile                      # Multi-stage lightweight Node Alpine container build
 ├── package.json                    # Project dependencies and automated test scripts
@@ -105,7 +106,14 @@ The pipeline is defined in [`.github/workflows/deploy.yaml`](../.github/workflow
 
 ## 📷 Verification & Proof of Deployment
 
-### Kubernetes Deployment Configuration & Active Pod
+### 1. GitHub Actions CI/CD Pipeline Execution (`build-test-deploy`)
+The screenshot below confirms the automated workflow succeeding end-to-end: running tests, configuring AWS credentials, authenticating with ECR, building and pushing the Docker container image, updating EKS kubeconfig, and rolling out the deployment:
+
+![GitHub Actions CI/CD Pipeline](./cicd.png)
+
+---
+
+### 2. Kubernetes Deployment Configuration & Active Pod
 The screenshot below confirms the Kubernetes pod successfully running the container image pulled directly from AWS ECR repository `713554441658.dkr.ecr.ap-south-1.amazonaws.com/raihan/app`:
 
 ![EKS Deployment Image Reference](./k8s/Reference%20Image/image.png)
